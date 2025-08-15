@@ -1,1 +1,5 @@
 Imgs/
+breakout_atari_ckpt.pth
+video-breakout/
+saved/
+.vscode
