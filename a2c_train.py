@@ -83,22 +83,20 @@ def train(
         ep_return = 0
         action_tensor = actor(obs_tensor)
 
-        # sample the action
-        dist = Categorical(action_tensor)
-        action = dist.sample().item()
 
         while not done:
+            # actor selects action
+            action_tensor = actor(obs_tensor)
+            # sample the action
+            dist = Categorical(action_tensor)
+            action_sample = dist.sample()
+            action = action_sample.item()
+
             next_obs, rew, terminated, truncated, info = env.step(action)
             done = terminated or truncated
             step_count = step_count + 1
             next_obs_tensor = torch.FloatTensor(next_obs).unsqueeze(0)
 
-            # actor selects action
-            action_tensor = actor(next_obs_tensor)
-            # sample the action
-            dist = Categorical(action_tensor)
-            action_sample = dist.sample()
-            action = action_sample.item()
 
             value_tensor = critic(obs_tensor)
             next_value_tensor = critic(next_obs_tensor) 
@@ -112,6 +110,13 @@ def train(
             # calcualte the advantage function
             advantage = td_target - value_tensor
 
+            # calculate the critic loss
+            critic_loss = F.mse_loss(td_target.detach(), value_tensor)
+            # optimize the critic
+            optim_critic.zero_grad()
+            critic_loss.backward()
+            optim_critic.step()
+
             # calculate the log_prob
             # pass the index of the chosen action in form of a tensor
             log_prob = dist.log_prob(action_sample)
@@ -124,14 +129,6 @@ def train(
             actor_loss.backward()
             optim_actor.step()
 
-            # calculate the critic loss
-            critic_loss = F.mse_loss(td_target.detach(), value_tensor)
-            
-            # optimize the critic
-            optim_critic.zero_grad()
-            critic_loss.backward()
-            optim_critic.step()
-
             ep_return += rew
             obs = next_obs
             obs_tensor = next_obs_tensor
@@ -143,7 +140,7 @@ def train(
         # update statistics        
         sr.update_episode_reward(ep_return)
 
-env = gym.make("CartPole-v1")
+env = gym.make("CartPole-v1", render_mode="human")
 input_size = env.observation_space.shape[0]
 num_actions = env.action_space.n
 actor = Actor(input_size, num_actions)
