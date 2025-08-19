@@ -4,6 +4,9 @@ import torch.nn.functional as F
 import gymnasium as gym
 import torch.optim as optim
 from torch.distributions import Categorical
+import matplotlib.pyplot as plt
+import numpy as np
+from tqdm import tqdm
 
 class Actor(nn.Module):
     def __init__(self, input_size, num_actions):
@@ -28,18 +31,46 @@ class Critic(nn.Module):
         x = self.fc2(x)
         return x
     
+class StatisticsRecorder():
+    def __init__(self):
+        self.average_rewards = []
+        self.episode_rewards = []
+
+    def update_episode_reward(self, episode_reward):
+        self.episode_rewards.append(episode_reward)
+
+    def plot_graph(self, data, x_label, y_label, title, path):
+        plt.plot(data)
+        plt.title(title)
+        plt.xlabel(x_label)
+        plt.ylabel(y_label)
+        plt.savefig(path)
+        plt.close()
+
+    def evaluation_checkpoint(self):
+        self.average_rewards.append(np.mean(self.episode_rewards))
+        self.episode_rewards = []
+        self.plot_graph(
+            self.average_rewards,
+            "Training Epochs",
+            "Average Reward per Episode",
+            "Average Reward on CartPole",
+            "Imgs/average_reward_on_cartpole.png")
+        
 def train(
         env,
         actor,
         critic,
+        sr,
         device="cpu",
         nb_steps=10_000,
         lr_actor=1e-3,
         lr_critic=1e-3,
-        gamma = 0.99
+        gamma = 0.99,
 ):
     step_count = 0
-
+    # add a progress bar
+    progress_bar = tqdm(total=nb_steps)
 
     optim_actor = optim.Adam(actor.parameters(), lr_actor)
     optim_critic = optim.Adam(critic.parameters(), lr_critic)
@@ -56,7 +87,6 @@ def train(
         dist = Categorical(action_tensor)
         action = dist.sample().item()
 
-        print("episode starts")
         while not done:
             next_obs, rew, terminated, truncated, info = env.step(action)
             done = terminated or truncated
@@ -101,16 +131,23 @@ def train(
             critic_loss.backward()
             optim_critic.step()
 
-            print(f"step: {step_count}, action: {action}, reward {rew}, actor loss: {actor_loss.item():.2f}, critic loss: {critic_loss.item():.2f}")
-
             ep_return += rew
             obs = next_obs
             obs_tensor = next_obs_tensor
+
+            # update statistics
+            if(step_count % 50_000 == 0) and step_count > 0:
+                sr.evaluation_checkpoint()
+            progress_bar.update()
+        # update statistics        
+        sr.update_episode_reward(ep_return)
 
 env = gym.make("CartPole-v1")
 input_size = env.observation_space.shape[0]
 num_actions = env.action_space.n
 actor = Actor(input_size, num_actions)
 critic = Critic(input_size)
+stat_recorder = StatisticsRecorder()
 
-train(env, actor, critic, nb_steps=100)
+train(env, actor, critic, stat_recorder, nb_steps=100_000_000)
+env.close()
