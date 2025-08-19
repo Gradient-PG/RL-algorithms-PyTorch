@@ -92,8 +92,9 @@ def train(
             done = terminated or truncated
             step_count = step_count + 1
             next_obs_tensor = torch.FloatTensor(next_obs).unsqueeze(0)
-            action_tensor = actor(next_obs_tensor)
 
+            # actor selects action
+            action_tensor = actor(next_obs_tensor)
             # sample the action
             dist = Categorical(action_tensor)
             action_sample = dist.sample()
@@ -106,26 +107,26 @@ def train(
             # TD target is meant to be a fixed reference point for the loss  
             # should not be used for optimizer adjust
             # so we use .detach() 
-            td_target = rew + gamma * next_value_tensor.detach() * (1 - done)
+            td_target = rew + gamma * next_value_tensor * (1 - done)
 
             # calcualte the advantage function
-            advantage = td_target - value_tensor.detach()
+            advantage = td_target - value_tensor
 
             # calculate the log_prob
             # pass the index of the chosen action in form of a tensor
             log_prob = dist.log_prob(action_sample)
 
             # calculate the actor loss
-            actor_loss = -1 * log_prob * advantage
-
-            # calculate the critic loss
-            critic_loss = F.mse_loss(td_target, value_tensor)
+            actor_loss = -1 * log_prob * advantage.detach()
 
             # optimize the actor
             optim_actor.zero_grad()
             actor_loss.backward()
             optim_actor.step()
 
+            # calculate the critic loss
+            critic_loss = F.mse_loss(td_target.detach(), value_tensor)
+            
             # optimize the critic
             optim_critic.zero_grad()
             critic_loss.backward()
@@ -136,7 +137,7 @@ def train(
             obs_tensor = next_obs_tensor
 
             # update statistics
-            if(step_count % 50_000 == 0) and step_count > 0:
+            if(step_count % 10_000 == 0) and step_count > 0:
                 sr.evaluation_checkpoint()
             progress_bar.update()
         # update statistics        
@@ -149,5 +150,5 @@ actor = Actor(input_size, num_actions)
 critic = Critic(input_size)
 stat_recorder = StatisticsRecorder()
 
-train(env, actor, critic, stat_recorder, nb_steps=100_000_000)
+train(env, actor, critic, stat_recorder, nb_steps=300_000)
 env.close()
