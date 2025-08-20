@@ -54,8 +54,8 @@ class StatisticsRecorder():
             self.average_rewards,
             "Training Epochs",
             "Average Reward per Episode",
-            "Average Reward on CartPole",
-            "Imgs/average_reward_on_cartpole.png")
+            "Average Reward on LunarLander",
+            "Imgs/average_reward_on_lunarlander.png")
         
 def train(
         env,
@@ -134,7 +134,7 @@ def train(
             obs_tensor = next_obs_tensor
 
             # update statistics
-            if(step_count % 10_000 == 0) and step_count > 0:
+            if(step_count % 100_000 == 0) and step_count > 0:
                 sr.evaluation_checkpoint()
             progress_bar.update()
         # update statistics        
@@ -147,5 +147,5 @@ actor = Actor(input_size, num_actions)
 critic = Critic(input_size)
 stat_recorder = StatisticsRecorder()
 
-train(env, actor, critic, stat_recorder, nb_steps=300_000)
+train(env, actor, critic, stat_recorder, nb_steps=2_000_000)
 env.close()
