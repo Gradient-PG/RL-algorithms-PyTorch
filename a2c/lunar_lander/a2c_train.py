@@ -140,7 +140,7 @@ def train(
         # update statistics        
         sr.update_episode_reward(ep_return)
 
-env = gym.make("LunarLander-v3", render_mode="human")
+env = gym.make("LunarLander-v3")
 input_size = env.observation_space.shape[0]
 num_actions = env.action_space.n
 actor = Actor(input_size, num_actions)
